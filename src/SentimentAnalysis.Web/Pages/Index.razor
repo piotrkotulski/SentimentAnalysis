@@ -1,0 +1,128 @@
+﻿@page "/"
+@using SentimentAnalysis.Core.Models
+@using SentimentAnalysis.Core.Interfaces
+@using SentimentAnalysis.Infrastructure.Services
+@inject ISocialMediaMonitor Monitor
+@inject AzureSentimentAnalyzer Analyzer
+
+<h1>Analiza Sentymentu w Mediach Społecznościowych</h1>
+
+<div class="row mb-4">
+    <div class="col">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Konfiguracja Kampanii</h5>
+                <div class="form-group">
+                    <label>Słowa kluczowe (oddzielone przecinkami)</label>
+                    <input type="text" class="form-control" @bind="keywords" />
+                </div>
+                <div class="form-group mt-2">
+                    <label>Zakres dat</label>
+                    <div class="d-flex gap-2">
+                        <input type="date" class="form-control" @bind="startDate" />
+                        <input type="date" class="form-control" @bind="endDate" />
+                    </div>
+                </div>
+                <button class="btn btn-primary mt-3" @onclick="AnalyzeSentiment">
+                    @if(isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    }
+                    Analizuj Sentyment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (posts != null && posts.Any())
+{
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Podsumowanie Sentymentu</h5>
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <div>Pozytywne: @posts.Count(p => p.SentimentScore.Sentiment == "Pozytywny")</div>
+                            <div>Neutralne: @posts.Count(p => p.SentimentScore.Sentiment == "Neutralny")</div>
+                            <div>Negatywne: @posts.Count(p => p.SentimentScore.Sentiment == "Negatywny")</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Ostatnie Posty</h5>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Autor</th>
+                                    <th>Treść</th>
+                                    <th>Źródło</th>
+                                    <th>Sentyment</th>
+                                    <th>Data</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var post in posts.OrderByDescending(p => p.CreatedAt))
+                                {
+                                    <tr>
+                                        <td>@post.Author</td>
+                                        <td>@post.Content</td>
+                                        <td>@post.Source</td>
+                                        <td>
+                                            <span class="badge bg-@GetSentimentColor(post.SentimentScore.Sentiment)">
+                                                @post.SentimentScore.Sentiment
+                                            </span>
+                                        </td>
+                                        <td>@post.CreatedAt.ToString("g")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string keywords = "";
+    private DateTime startDate = DateTime.Today.AddDays(-7);
+    private DateTime endDate = DateTime.Today;
+    private List<SocialMediaPost> posts = new();
+    private bool isLoading;
+
+    private async Task AnalyzeSentiment()
+    {
+        try
+        {
+            isLoading = true;
+            var keywordArray = keywords.Split(',')
+                                     .Select(k => k.Trim())
+                                     .Where(k => !string.IsNullOrEmpty(k))
+                                     .ToArray();
+
+            posts = (await Monitor.GetPostsAsync(keywordArray, startDate, endDate)).ToList();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetSentimentColor(string sentiment) => sentiment switch
+    {
+        "Pozytywny" => "success",
+        "Negatywny" => "danger",
+        _ => "secondary"
+    };
+}
