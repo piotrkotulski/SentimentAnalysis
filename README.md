@@ -5,6 +5,7 @@ Aplikacja do analizy sentymentu w mediach społecznościowych wykorzystująca Az
 ## Autorzy
 - Piotr Kotulski
 - Natan Gopon
+- Krzysztof Budzik
 
 ## Wymagania systemowe
 
