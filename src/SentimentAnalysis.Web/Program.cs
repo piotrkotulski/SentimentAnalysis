@@ -1,39 +1,66 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using SentimentAnalysis.Core.Interfaces;
 using SentimentAnalysis.Infrastructure.Services;
+
+Console.WriteLine("Starting application...");
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Dodaj na początku pliku, przed builder.Build()
-builder.WebHost.UseUrls("http://localhost:5206"); // Używamy innego portu
+// Ustaw konkretny port
+builder.WebHost.UseUrls("http://localhost:5003");
 
-// Add services to the container.
+// Dodaj logowanie
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+
+Console.WriteLine("Reading configuration...");
+var azureEndpoint = builder.Configuration["Azure:CognitiveServices:Endpoint"];
+var azureApiKey = builder.Configuration["Azure:CognitiveServices:ApiKey"];
+
+Console.WriteLine($"Azure Endpoint: {azureEndpoint}");
+Console.WriteLine("Configuration loaded");
+
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 
-// Register our services
-builder.Services.AddScoped<ISocialMediaMonitor, DemoSocialMediaMonitor>();
+// Register Azure Sentiment Analyzer
+Console.WriteLine("Registering services...");
 builder.Services.AddScoped<AzureSentimentAnalyzer>(sp => 
-    new AzureSentimentAnalyzer(
-        builder.Configuration["Azure:CognitiveServices:Endpoint"] ?? "https://your-endpoint",
-        builder.Configuration["Azure:CognitiveServices:ApiKey"] ?? "your-key"
-    ));
+{
+    Console.WriteLine("Creating AzureSentimentAnalyzer instance");
+    return new AzureSentimentAnalyzer(
+        azureEndpoint ?? "https://sentiment-analysis-cognitive.cognitiveservices.azure.com/",
+        azureApiKey ?? "n2W2ufiooQkJlNWpSKAImv4KZmbcJQhdpQDVstU6X6qPNtzp8xw7JQQJ99ALACYeBjFXJ3w3AAAaACOGgO0V"
+    );
+});
 
+Console.WriteLine("Building application...");
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error");
-    app.UseHsts();
+    app.UseDeveloperExceptionPage();
 }
 
-app.UseHttpsRedirection();
+Console.WriteLine("Configuring middleware...");
 app.UseStaticFiles();
 app.UseRouting();
+
+// Dodaj endpoint testowy
+app.MapGet("/test", () => "Server is running!");
 
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 
-app.Run();
+Console.WriteLine("Starting server on http://localhost:5003");
+try
+{
+    await app.RunAsync();
+    Console.WriteLine("Server started successfully");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Failed to start server: {ex.Message}");
+    Console.WriteLine($"Stack trace: {ex.StackTrace}");
+    throw;
+}
