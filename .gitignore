@@ -25,3 +25,7 @@ nupkg/
 *.user
 *.userosscache
 *.sln.docstates
+
+# Settings
+appsettings.Development.json
+appsettings.Production.json
