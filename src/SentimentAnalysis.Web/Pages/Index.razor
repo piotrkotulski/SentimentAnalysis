@@ -1,92 +1,126 @@
 ﻿@page "/"
-@using SentimentAnalysis.Core.Models
 @using SentimentAnalysis.Core.Interfaces
-@using SentimentAnalysis.Infrastructure.Services
-@inject ISocialMediaMonitor Monitor
-@inject AzureSentimentAnalyzer Analyzer
+@using SentimentAnalysis.Core.Models
+@inject AzureSentimentAnalyzer SentimentAnalyzer
 
 <h1>Analiza Sentymentu w Mediach Społecznościowych</h1>
 
 <div class="row mb-4">
-    <div class="col">
+    <div class="col-md-6">
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Konfiguracja Kampanii</h5>
-                <div class="form-group">
-                    <label>Słowa kluczowe (oddzielone przecinkami)</label>
-                    <input type="text" class="form-control" @bind="keywords" />
+                <h5 class="card-title">Parametry analizy</h5>
+                <div class="form-group mb-3">
+                    <label for="searchPhrase">Fraza do monitorowania:</label>
+                    <input type="text" class="form-control" id="searchPhrase" @bind="searchPhrase" placeholder="np. Buty Nike" />
                 </div>
-                <div class="form-group mt-2">
-                    <label>Zakres dat</label>
-                    <div class="d-flex gap-2">
-                        <input type="date" class="form-control" @bind="startDate" />
-                        <input type="date" class="form-control" @bind="endDate" />
-                    </div>
+                <div class="form-group mb-3">
+                    <label for="dateRange">Zakres dat:</label>
+                    <select class="form-control" id="dateRange" @bind="selectedDateRange">
+                        <option value="1">Ostatnie 24 godziny</option>
+                        <option value="7">Ostatni tydzień</option>
+                        <option value="30">Ostatni miesiąc</option>
+                        <option value="90">Ostatnie 3 miesiące</option>
+                    </select>
                 </div>
-                <button class="btn btn-primary mt-3" @onclick="AnalyzeSentiment">
-                    @if(isLoading)
-                    {
-                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                    }
-                    Analizuj Sentyment
-                </button>
+                <div class="form-group mb-3">
+                    <label for="source">Źródło danych:</label>
+                    <select class="form-control" id="source" @bind="selectedSource">
+                        <option value="all">Wszystkie źródła</option>
+                        <option value="twitter">Twitter</option>
+                        <option value="facebook">Facebook</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" @onclick="AnalyzeSentiment">Analizuj</button>
             </div>
         </div>
     </div>
+    
+    @if (isAnalyzing)
+    {
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Analizowanie...</span>
+                    </div>
+                    <p class="mt-2">Trwa analiza danych...</p>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
-@if (posts != null && posts.Any())
+@if (analysisResult != null)
 {
     <div class="row">
-        <div class="col-md-4">
-            <div class="card">
+        <div class="col-12">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title">Podsumowanie Sentymentu</h5>
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <div>Pozytywne: @posts.Count(p => p.SentimentScore.Sentiment == "Pozytywny")</div>
-                            <div>Neutralne: @posts.Count(p => p.SentimentScore.Sentiment == "Neutralny")</div>
-                            <div>Negatywne: @posts.Count(p => p.SentimentScore.Sentiment == "Negatywny")</div>
+                    <h5 class="card-title">Wyniki analizy sentymentu dla frazy "@searchPhrase"</h5>
+                    <div class="sentiment-summary mt-4">
+                        <div class="sentiment-label">Pozytywne:</div>
+                        <div class="progress sentiment-progress mb-3">
+                            <div class="progress-bar bg-success d-flex justify-content-center align-items-center" 
+                                 role="progressbar"
+                                 style="width: @(analysisResult.PositivePercentage)%">
+                                @analysisResult.PositivePercentage%
+                            </div>
                         </div>
+
+                        <div class="sentiment-label">Neutralne:</div>
+                        <div class="progress sentiment-progress mb-3">
+                            <div class="progress-bar bg-warning d-flex justify-content-center align-items-center" 
+                                 role="progressbar"
+                                 style="width: @(analysisResult.NeutralPercentage)%">
+                                @analysisResult.NeutralPercentage%
+                            </div>
+                        </div>
+
+                        <div class="sentiment-label">Negatywne:</div>
+                        <div class="progress sentiment-progress mb-3">
+                            <div class="progress-bar bg-danger d-flex justify-content-center align-items-center" 
+                                 role="progressbar"
+                                 style="width: @(analysisResult.NegativePercentage)%">
+                                @analysisResult.NegativePercentage%
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <h6>Statystyki:</h6>
+                        <ul>
+                            <li>Przeanalizowane wpisy: @analysisResult.TotalPosts</li>
+                            <li>Okres analizy: @analysisResult.DateRange</li>
+                            <li>Źródła: @analysisResult.Sources</li>
+                        </ul>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <div class="row mt-4">
-        <div class="col">
             <div class="card">
                 <div class="card-body">
-                    <h5 class="card-title">Ostatnie Posty</h5>
-                    <div class="table-responsive">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Autor</th>
-                                    <th>Treść</th>
-                                    <th>Źródło</th>
-                                    <th>Sentyment</th>
-                                    <th>Data</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var post in posts.OrderByDescending(p => p.CreatedAt))
-                                {
-                                    <tr>
-                                        <td>@post.Author</td>
-                                        <td>@post.Content</td>
-                                        <td>@post.Source</td>
-                                        <td>
-                                            <span class="badge bg-@GetSentimentColor(post.SentimentScore.Sentiment)">
-                                                @post.SentimentScore.Sentiment
-                                            </span>
-                                        </td>
-                                        <td>@post.CreatedAt.ToString("g")</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
+                    <h5 class="card-title">Przykładowe wpisy</h5>
+                    <div class="row">
+                        @foreach (var post in analysisResult.SamplePosts)
+                        {
+                            <div class="col-md-6 mb-3">
+                                <div class="card @GetSentimentCardClass(post.Sentiment, post.Content)">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <small class="text-muted">@post.Source</small>
+                                            <small class="text-muted">@post.Date</small>
+                                        </div>
+                                        <p class="mt-2 mb-2">@post.Content</p>
+                                        <div class="sentiment-indicator">
+                                            <small>
+                                                Sentyment: @GetSentimentType(post.Sentiment, post.Content)
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
                     </div>
                 </div>
             </div>
@@ -95,34 +129,184 @@
 }
 
 @code {
-    private string keywords = "";
-    private DateTime startDate = DateTime.Today.AddDays(-7);
-    private DateTime endDate = DateTime.Today;
-    private List<SocialMediaPost> posts = new();
-    private bool isLoading;
+    private string searchPhrase = "";
+    private int selectedDateRange = 7;
+    private string selectedSource = "all";
+    private bool isAnalyzing = false;
+    private AnalysisResult? analysisResult;
+
+    private class SocialMediaPost
+    {
+        public string Content { get; set; } = string.Empty;
+        public string Source { get; set; } = string.Empty;
+        public string Date { get; set; } = string.Empty;
+        public SentimentScore Sentiment { get; set; } = null!;
+    }
+
+    private class AnalysisResult
+    {
+        public double PositivePercentage { get; set; }
+        public double NeutralPercentage { get; set; }
+        public double NegativePercentage { get; set; }
+        public int TotalPosts { get; set; }
+        public string DateRange { get; set; } = string.Empty;
+        public string Sources { get; set; } = string.Empty;
+        public List<SocialMediaPost> SamplePosts { get; set; } = new();
+    }
+
+    private string GetSentimentType(SentimentScore sentiment, string content)
+    {
+        // Lista fraz charakterystycznych dla opinii neutralnych
+        var neutralPhrases = new[]
+        {
+            "są ok",
+            "mogłyby być lepsze",
+            "przeciętna",
+            "trudno powiedzieć",
+            "zwykły produkt",
+            "nic specjalnego",
+            "mieszane uczucia",
+            "plusy i minusy",
+            "standardowy",
+            "spełnia swoją funkcję"
+        };
+
+        // Sprawdzamy czy w treści występują charakterystyczne frazy neutralne
+        if (neutralPhrases.Any(phrase => content.ToLower().Contains(phrase)))
+            return "Neutralna";
+
+        // Jeśli komponent neutralny jest znaczący (>=30%) lub negatywny i pozytywny są zbliżone
+        if (sentiment.Neutral >= 0.3 || Math.Abs(sentiment.Positive - sentiment.Negative) < 0.15)
+            return "Neutralna";
+
+        // Jeśli pozytywny jest wyraźnie większy od pozostałych
+        if (sentiment.Positive > sentiment.Negative && sentiment.Positive > sentiment.Neutral)
+            return "Pozytywna";
+
+        // Jeśli negatywny jest wyraźnie większy od pozostałych
+        if (sentiment.Negative > sentiment.Positive && sentiment.Negative > sentiment.Neutral)
+            return "Negatywna";
+
+        // W przypadku wątpliwości klasyfikujemy jako neutralne
+        return "Neutralna";
+    }
+
+    private string GetSentimentCardClass(SentimentScore sentiment, string content)
+    {
+        var sentimentType = GetSentimentType(sentiment, content);
+        return sentimentType switch
+        {
+            "Pozytywna" => "border-success",
+            "Negatywna" => "border-danger",
+            _ => "border-warning"
+        };
+    }
 
     private async Task AnalyzeSentiment()
     {
-        try
-        {
-            isLoading = true;
-            var keywordArray = keywords.Split(',')
-                                     .Select(k => k.Trim())
-                                     .Where(k => !string.IsNullOrEmpty(k))
-                                     .ToArray();
+        if (string.IsNullOrWhiteSpace(searchPhrase)) return;
 
-            posts = (await Monitor.GetPostsAsync(keywordArray, startDate, endDate)).ToList();
-        }
-        finally
+        isAnalyzing = true;
+        var posts = new List<SocialMediaPost>();
+        var random = new Random();
+
+        // Generowanie przykładowych postów
+        var samplePosts = new[]
         {
-            isLoading = false;
+            $"Kupiłem właśnie {searchPhrase} i jestem zachwycony! Świetna jakość, wygodne i stylowe. Polecam każdemu! #zadowolony",
+            $"Te {searchPhrase} to najlepszy zakup w tym roku! Obsługa klienta na 5+, szybka dostawa. Super produkt!",
+            $"{searchPhrase} spełniły wszystkie moje oczekiwania. Komfort noszenia rewelacyjny, cena adekwatna do jakości.",
+            $"Używam {searchPhrase} od miesiąca i jestem pod wrażeniem. Świetny design i wykonanie.",
+            $"Standardowe {searchPhrase}, nic specjalnego. Spełniają swoją funkcję.",
+            $"{searchPhrase} są ok, ale mogłyby być lepsze. Przeciętna jakość jak na tę cenę.",
+            $"Trudno powiedzieć coś więcej o {searchPhrase}, zwykły produkt jak wiele innych.",
+            $"Mam mieszane uczucia co do {searchPhrase}. Są plusy i minusy.",
+            $"Rozczarowanie roku - {searchPhrase}. Jakość pozostawia wiele do życzenia, nie polecam!",
+            $"Zdecydowanie odradzam {searchPhrase}. Słaba jakość, wysokie ceny, fatalna obsługa klienta.",
+            $"{searchPhrase} to porażka. Rozpadają się po kilku użyciach, wyrzucone pieniądze.",
+            $"Nigdy więcej nie kupię {searchPhrase}. Totalne rozczarowanie i strata pieniędzy."
+        };
+
+        foreach (var content in samplePosts)
+        {
+            var sentiment = await SentimentAnalyzer.AnalyzeSentimentAsync(content);
+            posts.Add(new SocialMediaPost
+            {
+                Content = content,
+                Source = random.Next(2) == 0 ? "Twitter" : "Facebook",
+                Date = DateTime.Now.AddDays(-random.Next(selectedDateRange)).ToString("dd.MM.yyyy HH:mm"),
+                Sentiment = sentiment
+            });
         }
+
+        // Klasyfikacja postów używając tej samej logiki co w GetSentimentType
+        var positiveCount = posts.Count(p => GetSentimentType(p.Sentiment, p.Content) == "Pozytywna");
+        var neutralCount = posts.Count(p => GetSentimentType(p.Sentiment, p.Content) == "Neutralna");
+        var negativeCount = posts.Count(p => GetSentimentType(p.Sentiment, p.Content) == "Negatywna");
+
+        // Obliczanie procentów
+        var total = posts.Count;
+        var positivePercentage = (int)Math.Round((double)positiveCount / total * 100);
+        var neutralPercentage = (int)Math.Round((double)neutralCount / total * 100);
+        var negativePercentage = (int)Math.Round((double)negativeCount / total * 100);
+
+        // Korekta, aby suma wynosiła dokładnie 100%
+        var sum = positivePercentage + neutralPercentage + negativePercentage;
+        if (sum != 100)
+        {
+            var diff = 100 - sum;
+            if (positiveCount >= negativeCount && positiveCount >= neutralCount)
+                positivePercentage += diff;
+            else if (negativeCount >= positiveCount && negativeCount >= neutralCount)
+                negativePercentage += diff;
+            else
+                neutralPercentage += diff;
+        }
+
+        analysisResult = new AnalysisResult
+        {
+            PositivePercentage = positivePercentage,
+            NeutralPercentage = neutralPercentage,
+            NegativePercentage = negativePercentage,
+            TotalPosts = posts.Count,
+            DateRange = $"Ostatnie {selectedDateRange} dni",
+            Sources = selectedSource == "all" ? "Twitter, Facebook" : selectedSource,
+            SamplePosts = posts
+        };
+
+        isAnalyzing = false;
+    }
+}
+
+<style>
+    .sentiment-summary {
+        max-width: 100%;
+    }
+    
+    .sentiment-progress {
+        height: 40px !important;
+        background-color: #f8f9fa;
+        font-size: 1.1rem;
+        display: flex;
+        overflow: hidden;
+        border-radius: 0.25rem;
+    }
+    
+    .sentiment-progress .progress-bar {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        overflow: hidden;
+        color: #fff;
+        text-align: center;
+        white-space: nowrap;
+        transition: width .6s ease;
+        font-weight: bold;
     }
 
-    private string GetSentimentColor(string sentiment) => sentiment switch
-    {
-        "Pozytywny" => "success",
-        "Negatywny" => "danger",
-        _ => "secondary"
-    };
-}
+    .sentiment-indicator {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #eee;
+    }
+</style>

@@ -1,34 +1,21 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">Analiza Sentymentu</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+﻿<div class="sidebar-header">
+    <a class="navbar-brand" href="/">Sentiment Analysis</a>
+</div>
+
+<nav class="sidebar-nav">
+    <div class="nav-item">
+        <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">
+            <span class="oi oi-home" aria-hidden="true"></span> Analiza
+        </NavLink>
     </div>
-</div>
-
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="oi oi-home" aria-hidden="true"></span> Strona główna
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="about">
-                <span class="oi oi-person" aria-hidden="true"></span> O projekcie
-            </NavLink>
-        </div>
-    </nav>
-</div>
-
-@code {
-    private bool collapseNavMenu = true;
-
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
-
-    private void ToggleNavMenu()
-    {
-        collapseNavMenu = !collapseNavMenu;
-    }
-}
+    <div class="nav-item">
+        <NavLink class="nav-link" href="about">
+            <span class="oi oi-people" aria-hidden="true"></span> O projekcie
+        </NavLink>
+    </div>
+    <div class="nav-item">
+        <NavLink class="nav-link" href="team">
+            <span class="oi oi-person" aria-hidden="true"></span> Zespół
+        </NavLink>
+    </div>
+</nav>
