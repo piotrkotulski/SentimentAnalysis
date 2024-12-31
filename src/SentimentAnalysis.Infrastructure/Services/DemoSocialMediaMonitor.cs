@@ -6,113 +6,163 @@ using System.Linq;
 using Microsoft.Extensions.Logging;
 using SentimentAnalysis.Core.Models;
 using SentimentAnalysis.Core.Interfaces;
+using SentimentAnalysis.Infrastructure.Services;
 
 namespace SentimentAnalysis.Infrastructure.Services
 {
     public class DemoSocialMediaMonitor : ISocialMediaMonitor
     {
-        private static readonly string[] DemoAuthors = new[] { "Użytkownik1", "Użytkownik2", "Użytkownik3", "Użytkownik4", "Użytkownik5" };
-        private static readonly string[] DemoSources = new[] { "Twitter", "Facebook", "Instagram" };
-        private readonly AzureSentimentAnalyzer _sentimentAnalyzer;
-        private readonly CosmosDbService _cosmosDb;
+        private readonly Random _random = new Random();
+        private readonly string[] _authors = { "User123", "SocialGuru", "TechFan", "Influencer", "RegularUser" };
+        private readonly CosmosDbService _cosmosDbService;
         private readonly ILogger<DemoSocialMediaMonitor> _logger;
 
-        public DemoSocialMediaMonitor(
-            AzureSentimentAnalyzer sentimentAnalyzer, 
-            CosmosDbService cosmosDb,
-            ILogger<DemoSocialMediaMonitor> logger)
+        public DemoSocialMediaMonitor(CosmosDbService cosmosDbService, ILogger<DemoSocialMediaMonitor> logger)
         {
-            _sentimentAnalyzer = sentimentAnalyzer;
-            _cosmosDb = cosmosDb;
+            _cosmosDbService = cosmosDbService;
             _logger = logger;
         }
 
-        public async Task<IEnumerable<SocialMediaPost>> GetPostsAsync(
-            string[] keywords, 
-            DateTime startDate, 
-            DateTime endDate,
-            CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<SocialMediaPost>> GetPostsAsync(string searchPhrase, int daysBack, string source)
         {
             try
             {
-                if (keywords == null || !keywords.Any())
-                {
-                    _logger.LogWarning("No keywords provided");
-                    return new List<SocialMediaPost>();
-                }
-
-                _logger.LogInformation($"Searching for posts with keywords: {string.Join(", ", keywords)}");
+                Console.WriteLine("\n=== DemoSocialMediaMonitor.GetPostsAsync ===");
+                Console.WriteLine($"Searching for posts with phrase: {searchPhrase}, daysBack: {daysBack}, source: {source}");
+                var endDate = DateTime.Now;
+                var startDate = endDate.AddDays(-daysBack);
+                Console.WriteLine($"Date range: {startDate} to {endDate}");
                 
-                var existingPosts = await _cosmosDb.GetPostsAsync(keywords, startDate, endDate);
-                _logger.LogInformation($"Found {existingPosts.Count()} existing posts");
-                
-                if (existingPosts.Any())
-                {
-                    return existingPosts;
-                }
+                Console.WriteLine("Calling CosmosDbService.GetPostsAsync...");
+                var existingPosts = await _cosmosDbService.GetPostsAsync(searchPhrase, startDate, endDate);
+                Console.WriteLine($"Found {existingPosts.Count()} existing posts");
 
-                _logger.LogInformation("Generating demo posts");
-                var posts = new List<SocialMediaPost>();
-                var random = new Random();
-
-                foreach (var keyword in keywords)
+                if (!existingPosts.Any())
                 {
-                    _logger.LogInformation($"Generating posts for keyword: {keyword}");
+                    Console.WriteLine("No existing posts found, generating new ones");
+                    var newPosts = GenerateNewPosts(searchPhrase, daysBack, source).ToList();
+                    Console.WriteLine($"Generated {newPosts.Count} new posts");
                     
-                    // Generuj 5 postów dla każdego słowa kluczowego
-                    for (int i = 0; i < 5; i++)
-                    {
-                        var content = GenerateDemoContent(new[] { keyword }, random);
-                        _logger.LogInformation($"Generated content: {content}");
-                        
-                        var sentimentScore = await _sentimentAnalyzer.AnalyzeSentimentAsync(content);
-                        var post = new SocialMediaPost
-                        {
-                            Id = Guid.NewGuid().ToString(),
-                            Author = DemoAuthors[random.Next(DemoAuthors.Length)],
-                            Content = content,
-                            CreatedAt = startDate.AddDays(random.Next((endDate - startDate).Days)),
-                            Source = DemoSources[random.Next(DemoSources.Length)],
-                            Campaign = "DemoCampaign",
-                            Metadata = new Dictionary<string, string>(),
-                            SentimentScore = sentimentScore
-                        };
-
-                        posts.Add(post);
-                    }
+                    Console.WriteLine("Attempting to save posts to Cosmos DB...");
+                    await _cosmosDbService.SavePostsAsync(newPosts);
+                    Console.WriteLine("Posts saved successfully");
+                    return newPosts;
                 }
 
-                _logger.LogInformation($"Generated {posts.Count} demo posts");
-                await _cosmosDb.SavePostsAsync(posts);
-
-                return posts;
+                return existingPosts;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error in GetPostsAsync: {ex.Message}");
+                Console.WriteLine($"\n=== Error in DemoSocialMediaMonitor ===");
+                Console.WriteLine($"Error: {ex.Message}");
+                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+                Console.WriteLine("=== Error Details End ===\n");
                 throw;
             }
         }
 
-        private string GenerateDemoContent(string[] keywords, Random random)
+        private IEnumerable<SocialMediaPost> GenerateNewPosts(string searchPhrase, int daysBack, string source)
+        {
+            var endDate = DateTime.Now;
+            var random = new Random();
+            var posts = new List<SocialMediaPost>();
+
+            for (int i = 0; i < 12; i++)
+            {
+                var post = new SocialMediaPost
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Content = GenerateContent(searchPhrase),
+                    Source = source == "all" ? (random.Next(2) == 0 ? "Twitter" : "Facebook") : source,
+                    CreatedAt = endDate.AddDays(-random.Next(daysBack)),
+                    Campaign = searchPhrase?.ToUpper() ?? "DEFAULT"
+                };
+                posts.Add(post);
+            }
+
+            return posts;
+        }
+
+        public async Task<IEnumerable<string>> GetAvailableSourcesAsync()
+        {
+            return await Task.FromResult(new[] { "all", "twitter", "facebook" });
+        }
+
+        public async Task<Dictionary<DateTime, int>> GetPostsTimelineAsync(string searchPhrase, int daysBack, string source)
+        {
+            var timeline = new Dictionary<DateTime, int>();
+            var endDate = DateTime.Now.Date;
+            var startDate = endDate.AddDays(-daysBack);
+
+            for (var date = startDate; date <= endDate; date = date.AddDays(1))
+            {
+                timeline[date] = _random.Next(5, 50);
+            }
+
+            return await Task.FromResult(timeline);
+        }
+
+        private string GenerateContent(string searchPhrase)
         {
             var templates = new[]
             {
-                "Jestem zachwycony produktem {0}! Świetna jakość i obsługa klienta 👍",
-                "Niestety {0} mnie rozczarował. Słaba jakość i wysokie ceny 😞",
-                "Produkt {0} spełnia moje oczekiwania, choć są pewne drobne niedociągnięcia",
-                "Absolutnie nie polecam {0}. Strata czasu i pieniędzy! 😠",
-                "Super doświadczenie z {0}! Polecam wszystkim! ❤️",
-                "Średnie wrażenia z {0}. Nic specjalnego, ale też nie jest źle",
-                "Tragedia! {0} to najgorszy produkt jaki używałem! Omijać szerokim łukiem! 😡",
-                "{0} działa świetnie, jestem bardzo zadowolony z zakupu 😊",
-                "Mam mieszane uczucia co do {0}. Są plusy i minusy",
-                "Nie mogę się nachwalić {0}! Najlepszy zakup w tym roku! 🌟"
+                $"Kupiłem właśnie {searchPhrase} i jestem zachwycony! Świetna jakość, wygodne i stylowe. Polecam każdemu! #zadowolony",
+                $"Te {searchPhrase} to najlepszy zakup w tym roku! Obsługa klienta na 5+, szybka dostawa. Super produkt!",
+                $"{searchPhrase} spełniły wszystkie moje oczekiwania. Komfort noszenia rewelacyjny, cena adekwatna do jakości.",
+                $"Używam {searchPhrase} od miesiąca i jestem pod wrażeniem. Świetny design i wykonanie.",
+                $"Standardowe {searchPhrase}, nic specjalnego. Spełniają swoją funkcję.",
+                $"{searchPhrase} są ok, ale mogłyby być lepsze. Przeciętna jakość jak na tę cenę.",
+                $"Trudno powiedzieć coś więcej o {searchPhrase}, zwykły produkt jak wiele innych.",
+                $"Mam mieszane uczucia co do {searchPhrase}. Są plusy i minusy.",
+                $"Rozczarowanie roku - {searchPhrase}. Jakość pozostawia wiele do życzenia, nie polecam!",
+                $"Zdecydowanie odradzam {searchPhrase}. Słaba jakość, wysokie ceny, fatalna obsługa klienta.",
+                $"{searchPhrase} to porażka. Rozpadają się po kilku użyciach, wyrzucone pieniądze.",
+                $"Nigdy więcej nie kupię {searchPhrase}. Totalne rozczarowanie i strata pieniędzy."
             };
 
-            var template = templates[random.Next(templates.Length)];
-            var keyword = keywords[random.Next(keywords.Length)];
-            return string.Format(template, keyword);
+            return templates[_random.Next(templates.Length)];
+        }
+
+        public async Task TestDatabaseConnection()
+        {
+            try
+            {
+                Console.WriteLine("\n=== Testing Database Connection ===");
+                
+                // Pobierz przykładowy dokument
+                var samplePost = await _cosmosDbService.GetSamplePostAsync();
+                
+                if (samplePost != null)
+                {
+                    Console.WriteLine("Successfully retrieved sample post");
+                    Console.WriteLine($"Sample post campaign: {samplePost.Campaign}");
+                }
+                else
+                {
+                    Console.WriteLine("No documents found in database");
+                    
+                    // Spróbuj zapisać testowy dokument
+                    var testPost = new SocialMediaPost
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Content = "Test post",
+                        Source = "Test",
+                        CreatedAt = DateTime.Now,
+                        Campaign = "TEST"
+                    };
+                    
+                    await _cosmosDbService.SavePostAsync(testPost);
+                    Console.WriteLine("Successfully saved test post");
+                }
+                
+                Console.WriteLine("=== Database Test Complete ===\n");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"\n=== Database Test Failed ===");
+                Console.WriteLine($"Error: {ex.Message}");
+                throw;
+            }
         }
     }
 } 

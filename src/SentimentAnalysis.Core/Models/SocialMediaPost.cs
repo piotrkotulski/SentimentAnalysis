@@ -1,26 +1,37 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.Azure.Cosmos;
+using Newtonsoft.Json;
+
 namespace SentimentAnalysis.Core.Models
 {
     public class SocialMediaPost
     {
-        public SocialMediaPost()
-        {
-            Id = Guid.NewGuid().ToString();
-            Metadata = new Dictionary<string, string>();
-            Content = string.Empty;
-            Author = string.Empty;
-            Source = string.Empty;
-            Campaign = string.Empty;
-            SentimentScore = new SentimentScore();
-        }
-
-        public string Id { get; set; }
-        public string Content { get; set; }
-        public string Author { get; set; }
+        [JsonProperty(PropertyName = "id")]
+        public string Id { get; set; } = "";
+        
+        [JsonProperty(PropertyName = "content")]
+        public string Content { get; set; } = "";
+        
+        [JsonProperty(PropertyName = "source")]
+        public string Source { get; set; } = "";
+        
+        [JsonProperty(PropertyName = "createdAt")]
         public DateTime CreatedAt { get; set; }
-        public string Source { get; set; }
-        public string Campaign { get; set; }
-        public Dictionary<string, string> Metadata { get; set; }
-        public SentimentScore SentimentScore { get; set; }
+        
+        [JsonProperty(PropertyName = "sentiment")]
+        public SentimentScore Sentiment { get; set; } = new();
+        
+        private string _campaign = "DEFAULT";
+        
+        [JsonProperty(PropertyName = "campaign")]
+        public string Campaign 
+        { 
+            get => _campaign;
+            set => _campaign = value?.ToUpper() ?? "DEFAULT";
+        }
     }
 
     public class SentimentScore

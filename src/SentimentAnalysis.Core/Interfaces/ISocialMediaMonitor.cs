@@ -8,10 +8,8 @@ namespace SentimentAnalysis.Core.Interfaces
 {
     public interface ISocialMediaMonitor
     {
-        Task<IEnumerable<SocialMediaPost>> GetPostsAsync(
-            string[] keywords, 
-            DateTime startDate, 
-            DateTime endDate,
-            CancellationToken cancellationToken = default);
+        Task<IEnumerable<SocialMediaPost>> GetPostsAsync(string searchPhrase, int daysBack, string source);
+        Task<IEnumerable<string>> GetAvailableSourcesAsync();
+        Task<Dictionary<DateTime, int>> GetPostsTimelineAsync(string searchPhrase, int daysBack, string source);
     }
 } 
