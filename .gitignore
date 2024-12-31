@@ -29,3 +29,7 @@ nupkg/
 # Settings
 appsettings.Development.json
 appsettings.Production.json
+
+# Pliki konfiguracyjne z kluczami
+secrets.json
+local.settings.json
